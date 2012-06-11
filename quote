@@ -1,0 +1,133 @@
+#!/usr/local/bin/perl
+
+use strict;
+use warnings;
+use LWP::UserAgent;
+use File::Temp;
+use Getopt::Long;
+use File::Basename qw/basename/;
+use JSON qw/from_json to_json/;
+use Text::CSV;
+
+use Data::Dumper;
+
+sub usage {
+    my $err = shift || 0;
+    my $cmd = shift || "";
+    $err += 0; # force value to be numeric
+    my $io = $err ? \*STDERR : \*STDOUT;
+    print $io <<EOM;
+Usage:
+
+$0  --symbol <symbol>
+    - symbol: ticker symbol of the company
+
+EOM
+
+    exit $err;
+}
+
+my $URI = $ENV{YAHOO_FINANCE_URI} || "http://finance.yahoo.com/d/quotes.csv";
+my $TEMP_DIR = "/tmp";
+my $DELTA = 600;
+
+my @fields = (
+              { format => 's', field => 'symbol' },
+              { format => 'l1', field => 'last trade' },
+              { format => 'p2', field => 'change percent' },
+              { format => 'c1', field => 'change' }
+             );
+
+my $opts = { symbol => "YHOO" };
+GetOptions (
+            "symbol=s" => \$opts->{symbol}
+           ) || usage(1);
+
+my $quote = get_quote( $opts->{symbol} );
+
+# TODO: support dynamic formatting 
+print "$quote->{'symbol'}:\$$quote->{'last trade'} $quote->{'change'}\n";
+
+sub get_quote {
+    
+    my $symbol = shift || die "symbol not found";
+
+    my $prefix = basename($0) . "-" . getpwuid( $< ) . "-" . lc( $symbol );
+
+    my $cache = {};
+    my @files = <$TEMP_DIR/$prefix-*>; 
+
+    foreach my $file ( @files ) {
+        if ( -w $file ) {
+            $cache->{file} = $file;
+            my @stat = stat( $file );
+            $cache->{mtime} = $stat[9];
+            last;
+        }
+    }
+
+    if ( !keys %$cache ) {
+        my $tempfile = File::Temp->new( TEMPLATE => "$prefix-XXXXXX",
+                                        DIR => $TEMP_DIR,
+                                        UNLINK => 0
+                                      );
+        $cache->{file} = $tempfile->filename;
+        $cache->{mtime} = 0;
+    }
+
+    my $data = undef;
+    if ( time() > $cache->{mtime} + $DELTA ) {
+
+        my $ua = LWP::UserAgent->new;
+        $ua->timeout(10);
+        $ua->env_proxy;
+ 
+        my $response = $ua->get( $URI . '?f=' . get_format(). '&s=' . $opts->{symbol} );
+ 
+        if ($response->is_success) {
+            $data = map_fields( $response->decoded_content );
+            open my $fh, '>', $cache->{file} or die "can't write to file $cache->{file}: $!\n";
+            print $fh to_json( $data );
+            close $fh;
+        }
+    }
+
+    if ( ! $data ) {
+        $data = from_json( slurp( $cache->{file} ) );
+    }
+
+    return $data;
+}
+
+sub get_format {
+    my $format = '';
+    for my $i (0 .. $#fields) {
+        $format .= $fields[$i]->{format}; 
+    }
+    return $format;
+}
+
+sub map_fields {
+    my $content = shift;
+
+    my $csv = Text::CSV->new();
+    $csv->parse( $content );
+    my @values = $csv->fields();
+
+    my $data = {};
+    for my $i (0 .. $#values) {
+        $data->{$fields[$i]->{field}} = $values[$i]
+    }
+    return $data;
+}
+
+sub slurp {
+    my $file = shift;
+    return do {
+        local $/ = undef;
+        open my $fh, '<', $file or die "can't read contents of $file: $!\n";
+        my $content = <$fh>;
+        close $fh;
+        $content;
+    };
+}
