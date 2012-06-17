@@ -166,7 +166,7 @@ sub usage {
     my $cmd = shift || "";
     $err += 0; # force value to be numeric
     my $io = $err ? \*STDERR : \*STDOUT;
-    my $fields = join("\n", map { "        $_->{id}: $_->{name}" } @fields );
+    my $fields = join("\n", map { "        %$_->{id}: $_->{name}" } @fields );
 
     print $io <<EOM;
 Usage:
