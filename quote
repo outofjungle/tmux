@@ -173,7 +173,7 @@ Usage:
 
 $0  --symbol <symbol> --format <format>
     - symbol: ticker symbol of the company
-    - format: output format
+    - format: output format string
 $fields
 
 EOM
