@@ -22,7 +22,7 @@ my @fields = (
 
 my $opts = { 
             symbol => "YHOO",
-            format => "%s:%l1 %c1"
+            format => "#s:#l1 #c1"
            };
 
 GetOptions (
@@ -34,8 +34,8 @@ my ( $format, $sequence ) = process_user_format( $opts->{format} );
 my $quote = get_quote( $opts->{symbol} );
 
 my @output = ( $format );
-foreach my $id ( @$sequence ) {
-    push @output, $quote->{$id};
+foreach my $index ( @$sequence ) {
+    push @output, $quote->{$fields[$index]->{id}};
 }
 printf @output;
 
@@ -49,16 +49,16 @@ sub process_user_format {
 
     my $map = {};
     foreach my $i ( 0 .. $#fields ){
-        while ( $user_f =~ m/%(\Q$fields[$i]->{id}\E)/g ) {
-            $map->{$-[0]} = $fields[$i]->{id};
-            $print_f =~ s/%(\Q$fields[$i]->{id}\E)/%s/g;
+        while ( $user_f =~ m/#(\Q$fields[$i]->{id}\E)/g ) {
+            $map->{$-[0]} = $i;
+            $print_f =~ s/#(\Q$fields[$i]->{id}\E)/%s/g;
         }
     }
     my @pos = sort { $a > $b } keys %$map;
 
     my $sequence = [];
-    foreach my $index ( @pos ) {
-        push @$sequence, $map->{$index};
+    foreach my $i ( @pos ) {
+        push @$sequence, $map->{$i};
     }
 
     return ( $print_f, $sequence );
@@ -166,7 +166,7 @@ sub usage {
     my $cmd = shift || "";
     $err += 0; # force value to be numeric
     my $io = $err ? \*STDERR : \*STDOUT;
-    my $fields = join("\n", map { "        %$_->{id}: $_->{name}" } @fields );
+    my $fields = join("\n", map { "        #$_->{id}: $_->{name}" } @fields );
 
     print $io <<EOM;
 Usage:
