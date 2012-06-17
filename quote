@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr//bin/env perl
 
 use strict;
 use warnings;
@@ -9,45 +9,64 @@ use File::Basename qw/basename/;
 use JSON qw/from_json to_json/;
 use Text::CSV;
 
-use Data::Dumper;
-
-sub usage {
-    my $err = shift || 0;
-    my $cmd = shift || "";
-    $err += 0; # force value to be numeric
-    my $io = $err ? \*STDERR : \*STDOUT;
-    print $io <<EOM;
-Usage:
-
-$0  --symbol <symbol>
-    - symbol: ticker symbol of the company
-
-EOM
-
-    exit $err;
-}
-
 my $URI = $ENV{YAHOO_FINANCE_URI} || "http://finance.yahoo.com/d/quotes.csv";
 my $TEMP_DIR = "/tmp";
 my $DELTA = 600;
 
 my @fields = (
-              { format => 's', field => 'symbol' },
-              { format => 'l1', field => 'last trade' },
-              { format => 'p2', field => 'change percent' },
-              { format => 'c1', field => 'change' }
+              { id => 's', name => 'symbol' },
+              { id => 'l1', name => 'last trade' },
+              { id => 'p2', name => 'change percent' },
+              { id => 'c1', name => 'change' }
              );
 
-my $opts = { symbol => "YHOO" };
+my $opts = { 
+            symbol => "YHOO",
+            format => "%s:%l1 %c1"
+           };
+
 GetOptions (
-            "symbol=s" => \$opts->{symbol}
+            "symbol=s" => \$opts->{symbol},
+            "format=s" => \$opts->{format}
            ) || usage(1);
 
+my ( $format, $sequence ) = process_user_format( $opts->{format} );
 my $quote = get_quote( $opts->{symbol} );
 
-# TODO: support dynamic formatting 
-print "$quote->{'symbol'}:\$$quote->{'last trade'} $quote->{'change'}\n";
+my @output = ( $format );
+foreach my $id ( @$sequence ) {
+    push @output, $quote->{$id};
+}
+printf @output;
 
+#
+# splits user format into datafield position and format string
+#
+sub process_user_format {
+    
+    my $user_f = shift || die "format not found";
+    my $print_f = $user_f ."\n";
+
+    my $map = {};
+    foreach my $i ( 0 .. $#fields ){
+        while ( $user_f =~ m/%(\Q$fields[$i]->{id}\E)/g ) {
+            $map->{$-[0]} = $fields[$i]->{id};
+            $print_f =~ s/%(\Q$fields[$i]->{id}\E)/%s/g;
+        }
+    }
+    my @pos = sort { $a > $b } keys %$map;
+
+    my $sequence = [];
+    foreach my $index ( @pos ) {
+        push @$sequence, $map->{$index};
+    }
+
+    return ( $print_f, $sequence );
+}
+
+#
+# fetches the stock quote
+#
 sub get_quote {
     
     my $symbol = shift || die "symbol not found";
@@ -82,7 +101,7 @@ sub get_quote {
         $ua->timeout(10);
         $ua->env_proxy;
  
-        my $response = $ua->get( $URI . '?f=' . get_format(). '&s=' . $opts->{symbol} );
+        my $response = $ua->get( $URI . '?f=' . get_id_string(). '&s=' . $opts->{symbol} );
  
         if ($response->is_success) {
             $data = map_fields( $response->decoded_content );
@@ -99,14 +118,20 @@ sub get_quote {
     return $data;
 }
 
-sub get_format {
-    my $format = '';
+#
+# generates query parameter(f) from fields array
+#
+sub get_id_string {
+    my $id_string = '';
     for my $i (0 .. $#fields) {
-        $format .= $fields[$i]->{format}; 
+        $id_string .= $fields[$i]->{id}; 
     }
-    return $format;
+    return $id_string;
 }
 
+#
+# maps returned csv fields to a hash using fields array
+#
 sub map_fields {
     my $content = shift;
 
@@ -116,11 +141,14 @@ sub map_fields {
 
     my $data = {};
     for my $i (0 .. $#values) {
-        $data->{$fields[$i]->{field}} = $values[$i]
+        $data->{$fields[$i]->{id}} = $values[$i]
     }
     return $data;
 }
 
+#
+# slurp
+#
 sub slurp {
     my $file = shift;
     return do {
@@ -130,4 +158,28 @@ sub slurp {
         close $fh;
         $content;
     };
+}
+
+#
+# usage
+#
+sub usage {
+    my $err = shift || 0;
+    my $cmd = shift || "";
+    $err += 0; # force value to be numeric
+
+    my $fields = join("\n", map { "        $_->{id}: $_->{name}" } @fields );
+
+    my $io = $err ? \*STDERR : \*STDOUT;
+    print $io <<EOM;
+Usage:
+
+$0  --symbol <symbol> --format <format>
+    - symbol: ticker symbol of the company
+    - format: output format
+$fields
+
+EOM
+
+    exit $err;
 }
