@@ -70,12 +70,10 @@ sub process_user_format {
 sub get_quote {
     
     my $symbol = shift || die "symbol not found";
-
     my $prefix = basename($0) . "-" . getpwuid( $< ) . "-" . lc( $symbol );
-
-    my $cache = {};
     my @files = <$TEMP_DIR/$prefix-*>; 
 
+    my $cache = {};
     foreach my $file ( @files ) {
         if ( -w $file ) {
             $cache->{file} = $file;
@@ -167,10 +165,9 @@ sub usage {
     my $err = shift || 0;
     my $cmd = shift || "";
     $err += 0; # force value to be numeric
-
+    my $io = $err ? \*STDERR : \*STDOUT;
     my $fields = join("\n", map { "        $_->{id}: $_->{name}" } @fields );
 
-    my $io = $err ? \*STDERR : \*STDOUT;
     print $io <<EOM;
 Usage:
 
