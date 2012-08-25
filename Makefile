@@ -12,8 +12,8 @@ all: $(CONFIGS)
 %.conf: %.cft
 	cpp -P -I. -Wall -Werror -D$(DEFINE) $< $@
 
-install: $(CONFIGS)
-	ln -sf $(CURDIR)/$(CONFIGS) ~/.tmux.conf
+install: tmux.conf
+	ln -sf $(CURDIR)/tmux.conf ~/.tmux.conf
 
 clean:
 	rm -rf $(CONFIGS)
