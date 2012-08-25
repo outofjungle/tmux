@@ -7,14 +7,13 @@ else
 	DEFINE = TMUX_1_4
 endif
 
-all:: $(CONFIGS)
+all: $(CONFIGS)
 
 %.conf: %.cft
 	cpp -P -I. -Wall -Werror -D$(DEFINE) $< $@
 
-debug:
-	@echo $(CONFIGS)
-	@echo $(VERSION)
+install: $(CONFIGS)
+	ln -sf $(CURDIR)/$(CONFIGS) ~/.tmux.conf
 
 clean:
 	rm -rf $(CONFIGS)
