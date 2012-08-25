@@ -1,16 +1,16 @@
 CONFIGS = $(patsubst %.cft,%.conf,$(wildcard *.cft))
-VERSION = $(shell tmux -V | awk '{print $$NF}')
+TMUX_VERSION = $(addprefix TMUX_,$(subst .,_,$(shell tmux -V | awk '{print $$NF}')))
 
-ifeq ($(VERSION),1.6)
-	DEFINE = TMUX_1_6
-else
-	DEFINE = TMUX_1_4
-endif
+.PHONY: install
 
 all: $(CONFIGS)
 
 %.conf: %.cft
-	cpp -P -I. -Wall -Werror -D$(DEFINE) $< $@
+ifeq ($(TMUX_VERSION),)
+	cpp -P -I. -Wall -Werror $< $@
+else
+	cpp -P -I. -Wall -Werror -D$(TMUX_VERSION) $< $@
+endif
 
 install: tmux.conf
 	ln -sf $(CURDIR)/tmux.conf ~/.tmux.conf
