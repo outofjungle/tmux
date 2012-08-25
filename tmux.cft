@@ -1,0 +1,6 @@
+#include <tmux-common.conf>
+#if defined TMUX_1_6
+#include <tmux-1.6.conf>
+#else
+#include <tmux-1.4.conf>
+#endif
