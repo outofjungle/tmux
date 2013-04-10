@@ -95,7 +95,7 @@ class Quote:
         return True
 
 if __name__ == '__main__':
-    
+
     parser = argparse.ArgumentParser(
         description='Script to fetch stock quotes'
     )
@@ -132,3 +132,4 @@ if __name__ == '__main__':
         sys.stdout.write(
             quote.format( args.format )
         )
+        
