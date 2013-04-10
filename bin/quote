@@ -14,7 +14,9 @@ import StringIO
 import tempfile
 
 class Quote:
-    """retrives stock quote from Yahoo! finance service"""
+    """
+    retrives stock quote from Yahoo! finance service
+    """
 
     URL = 'http://download.finance.yahoo.com/d/quotes.csv';
     TEMP_DIR = '/tmp'
@@ -26,22 +28,25 @@ class Quote:
     )
 
     def __init__( self, symbol, timeout ):
-        """constructor"""
-        
+        """
+        constructor
+        """
         self.symbol = symbol
         self.timeout = timeout
         self.lookup = {}
 
 
     def format( self, format ):
-        """prints formatted symbol data"""
-        
+        """
+        prints formatted symbol data
+        """
         return str( format ).format( **self.lookup )
 
 
     def get_quote( self ):
-        """fetches and caches the symbol data"""
-        
+        """
+        fetches and caches the symbol data
+        """
         prefix = "{script}-{user}-{symbol}".format(
             script = os.path.basename( __file__ ),
             user = os.getlogin(),
