@@ -32,10 +32,12 @@ class Quote:
         self.timeout = timeout
         self.lookup = {}
 
+
     def format( self, format ):
         """prints formatted symbol data"""
         
         return str( format ).format( **self.lookup )
+
 
     def get_quote( self ):
         """fetches and caches the symbol data"""
@@ -93,6 +95,7 @@ class Quote:
 
         filehandle.close()
         return True
+
 
 if __name__ == '__main__':
 
