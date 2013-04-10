@@ -1,17 +1,17 @@
 #!/usr/bin/env python
-import urllib
-import urllib2
-import json
-import argparse
-import re
-import csv
-import StringIO
-import tempfile
 import os
 import os.path
+import sys
+import csv
+import json
 import stat
 import glob
 import time
+import urllib
+import urllib2
+import argparse
+import StringIO
+import tempfile
 
 class Quote:
     """retrives stock quote from Yahoo! finance service"""
@@ -46,9 +46,8 @@ class Quote:
             symbol = self.symbol.lower()
         )
 
-        files = glob.glob( "{dir}/{prefix}-*".format( dir = self.TEMP_DIR, prefix = prefix ) )
-
         cache = {}
+        files = glob.glob( "{dir}/{prefix}-*".format( dir = self.TEMP_DIR, prefix = prefix ) )
         for file in files:
             if os.access( file, os.W_OK ):
                 cache[ 'filename' ] = file
@@ -66,14 +65,12 @@ class Quote:
             temp_file.close()
 
         filehandle = open( cache[ 'filename' ], 'r+' )
-
         if  time.time() > ( cache[ 'mtime' ] + self.timeout ):
 
             query_fields = {
                 's': self.symbol,
                 'f': ''.join( map( lambda x: x.values()[0], self.FIELDS ) )
             }
-        
             query_string = urllib.urlencode( query_fields )
             uri = self.URL + '?' + query_string
 
@@ -86,11 +83,8 @@ class Quote:
                 self.lookup[ fields[ index ] ] = data[ index ]
 
             filehandle.write(
-                json.dumps(
-                    self.lookup
-                )
+                json.dumps( self.lookup )
             )
-
         else:
             file = open( cache[ 'filename' ], 'r' )
             self.lookup = json.loads(
@@ -128,7 +122,13 @@ if __name__ == '__main__':
     )
     
     args = parser.parse_args()
-    quote = Quote( args.symbol, args.timeout )
-    quote.get_quote()
-    print quote.format( args.format )
 
+    quote = Quote(
+        args.symbol,
+        args.timeout
+    )
+
+    if quote.get_quote():
+        sys.stdout.write(
+            quote.format( args.format )
+        )
