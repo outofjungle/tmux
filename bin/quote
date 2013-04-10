@@ -1,182 +1,134 @@
-#!/usr/bin/env perl
+#!/usr/bin/env python
+import urllib
+import urllib2
+import json
+import argparse
+import re
+import csv
+import StringIO
+import tempfile
+import os
+import os.path
+import stat
+import glob
+import time
 
-use strict;
-use warnings;
-use LWP::UserAgent;
-use File::Temp;
-use Getopt::Long;
-use File::Basename qw/basename/;
-use JSON qw/from_json to_json/;
-use Text::CSV;
+class Quote:
+    """retrives stock quote from Yahoo! finance service"""
 
-my $URI = $ENV{YAHOO_FINANCE_URI} || "http://finance.yahoo.com/d/quotes.csv";
-my $TEMP_DIR = "/tmp";
-my $DELTA = 600;
+    URL = 'http://download.finance.yahoo.com/d/quotes.csv';
+    TEMP_DIR = '/tmp'
+    FIELDS = (
+        { 'symbol': 's' },
+        { 'last-trade': 'l1' },
+        { 'change-percent': 'p2' },
+        { 'change': 'c1' }
+    )
 
-my @fields = (
-              { id => 's', name => 'symbol' },
-              { id => 'l1', name => 'last trade' },
-              { id => 'p2', name => 'change percent' },
-              { id => 'c1', name => 'change' }
-             );
+    def __init__( self, symbol, timeout ):
+        """constructor"""
+        
+        self.symbol = symbol
+        self.timeout = timeout
+        self.lookup = {}
 
-my $opts = { 
-            symbol => "YHOO",
-            format => "#s:#l1 #c1"
-           };
+    def format( self, format ):
+        """prints formatted symbol data"""
+        
+        return str( format ).format( **self.lookup )
 
-GetOptions (
-            "symbol=s" => \$opts->{symbol},
-            "format=s" => \$opts->{format}
-           ) || usage(1);
+    def get_quote( self ):
+        """fetches and caches the symbol data"""
+        
+        prefix = "{script}-{user}-{symbol}".format(
+            script = os.path.basename( __file__ ),
+            user = os.getlogin(),
+            symbol = self.symbol.lower()
+        )
 
-my ( $format, $sequence ) = process_user_format( $opts->{format} );
-my $quote = get_quote( $opts->{symbol} );
+        files = glob.glob( "{dir}/{prefix}-*".format( dir = self.TEMP_DIR, prefix = prefix ) )
 
-my @output = ( $format );
-foreach my $index ( @$sequence ) {
-    push @output, $quote->{$fields[$index]->{id}};
-}
-printf @output;
+        cache = {}
+        for file in files:
+            if os.access( file, os.W_OK ):
+                cache[ 'filename' ] = file
+                cache[ 'mtime' ] = os.stat( file ).st_mtime
+                break
 
-#
-# splits user format into datafield position and format string
-#
-sub process_user_format {
+        if len( cache ) == 0:
+            temp_file = tempfile.NamedTemporaryFile(
+                delete = False,
+                prefix = "{prefix}-".format( prefix = prefix ),
+                dir = self.TEMP_DIR
+            )
+            cache[ 'filename' ] = temp_file.name
+            cache[ 'mtime' ] = 0
+            temp_file.close()
+
+        filehandle = open( cache[ 'filename' ], 'r+' )
+
+        if  time.time() > ( cache[ 'mtime' ] + self.timeout ):
+
+            query_fields = {
+                's': self.symbol,
+                'f': ''.join( map( lambda x: x.values()[0], self.FIELDS ) )
+            }
+        
+            query_string = urllib.urlencode( query_fields )
+            uri = self.URL + '?' + query_string
+
+            response = urllib2.urlopen( uri )
+            content = StringIO.StringIO( response.read() )
+            data = csv.reader( content, delimiter=',' ).next()
+
+            fields = map( lambda x: x.keys()[0], self.FIELDS )
+            for index in range( 0, len( fields ) ):
+                self.lookup[ fields[ index ] ] = data[ index ]
+
+            filehandle.write(
+                json.dumps(
+                    self.lookup
+                )
+            )
+
+        else:
+            file = open( cache[ 'filename' ], 'r' )
+            self.lookup = json.loads(
+                filehandle.read()
+            )
+
+        filehandle.close()
+        return True
+
+if __name__ == '__main__':
     
-    my $user_f = shift || die "format not found";
-    my $print_f = $user_f ."\n";
+    parser = argparse.ArgumentParser(
+        description='Script to fetch stock quotes'
+    )
 
-    my $map = {};
-    foreach my $i ( 0 .. $#fields ){
-        while ( $user_f =~ m/#(\Q$fields[$i]->{id}\E)/g ) {
-            $map->{$-[0]} = $i;
-            $print_f =~ s/#(\Q$fields[$i]->{id}\E)/%s/g;
-        }
-    }
-    my @pos = sort { $a > $b } keys %$map;
+    parser.add_argument(
+        '-s', '--symbol',
+        help='ticker symbol',
+        type=str,
+        default='YHOO'
+    )
 
-    my $sequence = [];
-    foreach my $i ( @pos ) {
-        push @$sequence, $map->{$i};
-    }
+    parser.add_argument(
+        '-f', '--format',
+        help='output format',
+        type=str,
+        default='{symbol}:{last-trade} {change}'
+    )
 
-    return ( $print_f, $sequence );
-}
-
-#
-# fetches the stock quote
-#
-sub get_quote {
+    parser.add_argument(
+        '-t', '--timeout',
+        help='cache timeout',
+        type=int,
+        default=600
+    )
     
-    my $symbol = shift || die "symbol not found";
-    my $prefix = basename($0) . "-" . getpwuid( $< ) . "-" . lc( $symbol );
-    my @files = <$TEMP_DIR/$prefix-*>; 
+    args = parser.parse_args()
+    quote = Quote( args.symbol, args.timeout )
+    quote.get_quote()
+    print quote.format( args.format )
 
-    my $cache = {};
-    foreach my $file ( @files ) {
-        if ( -w $file ) {
-            $cache->{file} = $file;
-            my @stat = stat( $file );
-            $cache->{mtime} = $stat[9];
-            last;
-        }
-    }
-
-    if ( !keys %$cache ) {
-        my $tempfile = File::Temp->new( TEMPLATE => "$prefix-XXXXXX",
-                                        DIR => $TEMP_DIR,
-                                        UNLINK => 0
-                                      );
-        $cache->{file} = $tempfile->filename;
-        $cache->{mtime} = 0;
-    }
-
-    my $data = undef;
-    if ( time() > $cache->{mtime} + $DELTA ) {
-
-        my $ua = LWP::UserAgent->new;
-        $ua->timeout(10);
-        $ua->env_proxy;
- 
-        my $response = $ua->get( $URI . '?f=' . get_id_string(). '&s=' . $opts->{symbol} );
- 
-        if ($response->is_success) {
-            $data = map_fields( $response->decoded_content );
-            open my $fh, '>', $cache->{file} or die "can't write to file $cache->{file}: $!\n";
-            print $fh to_json( $data );
-            close $fh;
-        }
-    }
-
-    if ( ! $data ) {
-        $data = from_json( slurp( $cache->{file} ) );
-    }
-
-    return $data;
-}
-
-#
-# generates query parameter(f) from fields array
-#
-sub get_id_string {
-    my $id_string = '';
-    for my $i (0 .. $#fields) {
-        $id_string .= $fields[$i]->{id}; 
-    }
-    return $id_string;
-}
-
-#
-# maps returned csv fields to a hash using fields array
-#
-sub map_fields {
-    my $content = shift;
-
-    my $csv = Text::CSV->new();
-    $csv->parse( $content );
-    my @values = $csv->fields();
-
-    my $data = {};
-    for my $i (0 .. $#values) {
-        $data->{$fields[$i]->{id}} = $values[$i]
-    }
-    return $data;
-}
-
-#
-# slurp
-#
-sub slurp {
-    my $file = shift;
-    return do {
-        local $/ = undef;
-        open my $fh, '<', $file or die "can't read contents of $file: $!\n";
-        my $content = <$fh>;
-        close $fh;
-        $content;
-    };
-}
-
-#
-# usage
-#
-sub usage {
-    my $err = shift || 0;
-    my $cmd = shift || "";
-    $err += 0; # force value to be numeric
-    my $io = $err ? \*STDERR : \*STDOUT;
-    my $fields = join("\n", map { "        #$_->{id}: $_->{name}" } @fields );
-
-    print $io <<EOM;
-Usage:
-
-$0  --symbol <symbol> --format <format>
-    - symbol: ticker symbol of the company
-    - format: output format string
-$fields
-
-EOM
-
-    exit $err;
-}
