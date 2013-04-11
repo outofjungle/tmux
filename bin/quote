@@ -16,15 +16,17 @@ import tempfile
 class Quote:
     """
     retrives stock quote from Yahoo! finance service
+    more info: http://www.gummy-stuff.org/Yahoo-data.htm
     """
-
-    URL = 'http://download.finance.yahoo.com/d/quotes.csv';
+    URL = 'http://download.finance.yahoo.com/d/quotes.csv' 
     TEMP_DIR = '/tmp'
     FIELDS = (
         { 'symbol': 's' },
         { 'last-trade': 'l1' },
         { 'change-percent': 'p2' },
-        { 'change': 'c1' }
+        { 'change': 'c1' },
+        { 'day-low': 'g' },
+        { 'day-high': 'h' }
     )
 
     def __init__( self, symbol, timeout ):
@@ -105,28 +107,28 @@ class Quote:
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(
-        description='Script to fetch stock quotes'
+        description = 'Script to fetch stock quotes'
     )
 
     parser.add_argument(
         '-s', '--symbol',
-        help='ticker symbol',
-        type=str,
-        default='YHOO'
+        help = 'ticker symbol',
+        type = str,
+        default = 'YHOO'
     )
 
     parser.add_argument(
         '-f', '--format',
-        help='output format',
-        type=str,
-        default='{symbol}:{last-trade} {change}'
+        help = 'output format',
+        type = str,
+        default = '{symbol}:{last-trade} {change}'
     )
 
     parser.add_argument(
         '-t', '--timeout',
-        help='cache timeout',
-        type=int,
-        default=600
+        help = 'cache timeout',
+        type = int,
+        default = 600
     )
     
     args = parser.parse_args()
