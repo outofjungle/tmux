@@ -89,11 +89,11 @@ class Quote:
             for index in range( 0, len( fields ) ):
                 self.lookup[ fields[ index ] ] = data[ index ]
 
+            filehandle.truncate()
             filehandle.write(
                 json.dumps( self.lookup )
             )
         else:
-            file = open( cache[ 'filename' ], 'r' )
             self.lookup = json.loads(
                 filehandle.read()
             )
