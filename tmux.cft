@@ -1,6 +1,0 @@
-#include <conf/tmux-common.conf>
-#if defined TMUX_1_6
-#include <conf/tmux-1.6.conf>
-#elif defined TMUX_1_4
-#include <conf/tmux-1.4.conf>
-#endif
